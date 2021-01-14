@@ -229,9 +229,9 @@ def get_tickets(username, token, sprint_id):
 
 def get_ticket_data(username, token, tickets):
     headers = get_auth_headers(username, token)
-    tickets2 = []
-    for t in tickets:
-        print(f'Getting history for ticket {t[DS_KEY]}')
+    tickets2 = {}
+    for t in sorted(tickets, key=lambda k: int(k.split('-')[-1])):
+        print(f'Getting history for ticket {t}')
         # close to get_jira_selection but not enough that I want to DRY it up right now
         # need to pass in collector for results
         not_complete = True
@@ -240,7 +240,7 @@ def get_ticket_data(username, token, tickets):
         start_at = 0
         while not_complete:
             resp = requests.get(
-                f'{JIRA_URL}{JIRA_ISSUE}{t[DS_KEY]}{JIRA_CHANGELOG_SUFFIX}',
+                f'{JIRA_URL}{JIRA_ISSUE}{t}{JIRA_CHANGELOG_SUFFIX}',
                 params={QUERY_MAX_RESULTS: MAX_RESULTS,
                         QUERY_START_AT: start_at,
                         },
@@ -266,8 +266,8 @@ def get_ticket_data(username, token, tickets):
         done = None if done == DT_MIN else done
         in_prog = None if in_prog == DT_MAX else in_prog
         t2 = {DS_IN_PROGRESS: in_prog, DS_DONE: done}
-        t2.update(t)
-        tickets2.append(t2)
+        t2.update(tickets[t])
+        tickets2[t] = t2
     return tickets2
 
 
@@ -314,22 +314,24 @@ def main():
             if t[DS_KEY] in tickets and tickets[t[DS_KEY]] != t:
                 raise ValueError(f'ticket data not equal to prior data for sprint {sprint_id}')
             tickets[t[DS_KEY]] = t
-    tickets = [tickets[t] for t in sorted(tickets, key=lambda k: int(k.split('-')[1]))]
     print(f'Found {len(tickets)} tickets in sprints, fetching ticket history')
     tickets = get_ticket_data(username, token, tickets)
-    ticket_in_sprints = defaultdict(list)
+    for t in tickets:
+        tickets[t][DS_SPRINTS] = []
     for i, sprint in enumerate(sprints):
         for t in sprint[1][DS_TICKETS]:
-            ticket_in_sprints[t].append(i + 1)
+            tickets[t][DS_SPRINTS].append(i + 1)
 
     print()
     print('Sprint #\tSprint Name')
     for i, (_, sprint) in enumerate(sprints):
         print(f'{i + 1}\t{sprint[DS_SPRINT_NAME]}')
+    print()
+    print(f'Ticket count: {len(tickets)}')
     print('Ticket ID\tEst. SP\t Act. SP\tIn Prog\tDone\tSprints\tTitle')
-    for t in tickets:
-        t[DS_SPRINTS] = ticket_in_sprints[t[DS_KEY]]
-        print_ticket(t)
+    # sort by the last sprint containing the ticket, then by the ticket number
+    for t in sorted(tickets, key=lambda k: (tickets[k][DS_SPRINTS][-1], int(k.split('-')[-1]))):
+        print_ticket(tickets[t])
 
 
 if __name__ == '__main__':
