@@ -94,6 +94,10 @@ def load_config(cfgfile):
     cfg = ConfigParser()
     cfg.read(cfgfile)
     # TODO check config is valid - no missing keys, creds work, board ID is an int
+    return cfg_to_dict(cfg)
+
+
+def cfg_to_dict(cfg):
     ignore = cfg[SEC_JIRA].get(CFG_IGNORE_SPRINTS)
     ignore = [t.strip() for t in ignore.split(';') if t.strip()] if ignore else []
     ret = {CFG_USERNAME: cfg[SEC_CREDS][CFG_USERNAME],
@@ -181,7 +185,7 @@ def get_config(cfgfile):
     print(f'Wrote configuration to {cfgfile}. To make changes to the configuration you can ' +
         'edit that file manually or delete it to run this initialization routine again.')
 
-    return cfg
+    return cfg_to_dict(cfg)
 
 def get_sprints(username, token, board_id, ignore_sprints):
     headers = get_auth_headers(username, token)
