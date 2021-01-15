@@ -22,6 +22,7 @@ SEC_JIRA = 'JIRA settings'
 CFG_USERNAME = 'username'
 CFG_API_TOKEN = 'api_token'
 CFG_BOARD = 'board_id'
+CFG_IGNORE_SPRINTS = 'ignore_sprints'
 
 JIRA_URL = 'https://kbase-jira.atlassian.net'
 JIRA_API_TOKEN_URL = 'https://confluence.atlassian.com/cloud/api-tokens-938839638.html'
@@ -93,7 +94,13 @@ def load_config(cfgfile):
     cfg = ConfigParser()
     cfg.read(cfgfile)
     # TODO check config is valid - no missing keys, creds work, board ID is an int
-    return cfg
+    ignore = cfg[SEC_JIRA].get(CFG_IGNORE_SPRINTS)
+    ignore = [t.strip() for t in ignore.split(';') if t.strip()] if ignore else []
+    ret = {CFG_USERNAME: cfg[SEC_CREDS][CFG_USERNAME],
+           CFG_API_TOKEN: cfg[SEC_CREDS][CFG_API_TOKEN],
+           CFG_BOARD: int(cfg[SEC_JIRA][CFG_BOARD]),
+           CFG_IGNORE_SPRINTS: ignore}
+    return ret
 
 
 # *** side effect *** - adds username, token, & comments to config
@@ -157,7 +164,12 @@ def get_jira_board(cfg):
     cfg.add_section(SEC_JIRA)
     cfg.set(SEC_JIRA, '# The ID of the JIRA agile board.', None)
     cfg[SEC_JIRA][CFG_BOARD] = str(board_id)
-
+    cfg.set(
+        SEC_JIRA,
+        '# Ignore selected sprints. Enter substrings of sprints to ignore, ' +
+            'separated by semicolons',
+        None)
+    cfg.set(SEC_JIRA, CFG_IGNORE_SPRINTS, '')
 
 def get_config(cfgfile):
     cfg = ConfigParser(allow_no_value=True)
@@ -171,7 +183,7 @@ def get_config(cfgfile):
 
     return cfg
 
-def get_sprints(username, token, board_id):
+def get_sprints(username, token, board_id, ignore_sprints):
     headers = get_auth_headers(username, token)
 
     not_complete = True
@@ -189,9 +201,17 @@ def get_sprints(username, token, board_id):
         start_at = start_at + len(j[RESULT_VALUES])
         
         for item in j[RESULT_VALUES]:
-            items[item[RESULT_ID]] = {DS_SPRINT_NAME: item[RESULT_NAME]}
+            if not ignored(item[RESULT_NAME], ignore_sprints):
+                items[item[RESULT_ID]] = {DS_SPRINT_NAME: item[RESULT_NAME]}
     sorted_items = [(b, items[b]) for b in sorted(items)]
     return sorted_items
+
+
+def ignored(sprint_name, ignore_sprints):
+    for ig in ignore_sprints:
+        if ig in sprint_name:
+            return True
+    return False
 
 
 def get_tickets(username, token, sprint_id):
@@ -302,9 +322,9 @@ def main():
         print(f'No configuration file found')
         cfg = get_config(cfgfile)
 
-    username = cfg[SEC_CREDS][CFG_USERNAME]
-    token = cfg[SEC_CREDS][CFG_API_TOKEN]
-    sprints = get_sprints(username, token, int(cfg[SEC_JIRA][CFG_BOARD]))
+    username = cfg[CFG_USERNAME]
+    token = cfg[CFG_API_TOKEN]
+    sprints = get_sprints(username, token, cfg[CFG_BOARD], cfg[CFG_IGNORE_SPRINTS])
     tickets = {}
     for sprint_id, sprint_data in sprints:
         print(f'Getting tickets for sprint {sprint_data[DS_SPRINT_NAME]} (ID {sprint_id})')
