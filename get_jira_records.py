@@ -50,6 +50,8 @@ RESULT_FIELDS = 'fields'
 FLD_STORY_POINT_ACTUAL = 'customfield_11164'
 FLD_STORY_POINT_EST = 'customfield_11127'
 FLD_SUMMARY = 'summary'
+FLD_ASSIGNEE = 'assignee'
+FLD_DISPLAY_NAME = 'displayName'
 
 CHANGELOG_STATUS = 'status'
 CHANGELOG_INPROG_ID = '10685'
@@ -60,7 +62,8 @@ DS_STORY_POINT_ACTUAL = 'spa'
 DS_STORY_POINT_EST = 'spe'
 DS_TITLE = 'title'
 DS_SPRINTS = 'sprints'
-DS_SPRINT_NAME = 'name'
+DS_SPRINT_NAME = 'spname'
+DS_USER = 'user'
 DS_TICKETS = 'tickets'
 DS_IN_PROGRESS = 'inprog'
 DS_DONE = 'done'
@@ -241,10 +244,12 @@ def get_tickets(username, token, sprint_id):
         not_complete = j[RESULT_TOTAL] > start_at
 
         for item in j[RESULT_ISSUES]:
+            assign = item[RESULT_FIELDS][FLD_ASSIGNEE]
             keys.append({DS_KEY: item[RESULT_KEY],
                          DS_TITLE: item[RESULT_FIELDS].get(FLD_SUMMARY),
                          DS_STORY_POINT_EST: item[RESULT_FIELDS].get(FLD_STORY_POINT_EST),
-                         DS_STORY_POINT_ACTUAL: item[RESULT_FIELDS].get(FLD_STORY_POINT_ACTUAL)
+                         DS_STORY_POINT_ACTUAL: item[RESULT_FIELDS].get(FLD_STORY_POINT_ACTUAL),
+                         DS_USER: assign[FLD_DISPLAY_NAME] if assign else 'Unassigned'
             })
     # assumes all keys in sprint have the same prefix
     # may need simple adjustment if not
@@ -313,7 +318,8 @@ def print_ticket(ticket):
         print(f'{done:%Y-%m-%d %H:%M:%S}\t', end='')
     else:
         print('\t', end='')
-    print(f'{",".join([str(t) for t in ticket[DS_SPRINTS]])}\t{ticket[DS_TITLE]}')
+    print(f'{",".join([str(t) for t in ticket[DS_SPRINTS]])}', end='')
+    print(f'\t{ticket[DS_USER]}\t{ticket[DS_TITLE]}')
 
 def main():
     cfgfile = Path(os.path.expanduser('~')) / CONFIG_FILE
